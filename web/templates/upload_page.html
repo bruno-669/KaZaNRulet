@@ -1,0 +1,38 @@
+{{define "content"}}
+<h2>Загрузка документов</h2>
+
+<div class="upload-area">
+    <p>Перетащите файлы сюда или нажмите для выбора</p>
+    <form enctype="multipart/form-data" 
+          hx-post="/upload" 
+          hx-target="#document-rows" 
+          hx-swap="outerHTML">
+        <input type="file" name="documents" id="file-input" multiple hidden>
+        <button type="button" onclick="document.getElementById('file-input').click();">Выбрать файлы</button>
+        <button type="submit">Загрузить</button>
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Имя файла</th>
+            <th>Статус</th>
+            <th>Действие</th>
+        </tr>
+    </thead>
+    <tbody id="document-rows" 
+           hx-get="/partials/file-list" 
+           hx-trigger="every 5s" 
+           hx-swap="outerHTML">
+        {{range .Documents}}
+        <tr>
+            <td>{{.FileName}}</td>
+            <td><span class="status-{{.Status}}">{{.Status}}</span></td>
+            <td><a href="/verify/{{.ID}}" role="button">Проверить</a></td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{end}}
+{{template "base.html" .}}

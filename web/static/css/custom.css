@@ -1,0 +1,106 @@
+/* Бейджи статусов */
+.status-processing {
+    background-color: #ffc107;
+    color: #000;
+    padding: 0.2em 0.6em;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: bold;
+}
+
+.status-ready {
+    background-color: #0d6efd;
+    color: #fff;
+    padding: 0.2em 0.6em;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: bold;
+}
+
+.status-approved {
+    background-color: #198754;
+    color: #fff;
+    padding: 0.2em 0.6em;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: bold;
+}
+
+/* Группа полей */
+.field-group {
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+}
+
+/* Ошибочное поле */
+.field-error {
+    border-color: #dc3545 !important;
+    color: #dc3545;
+}
+
+.field-error .error-text {
+    display: block;
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+/* Контейнер */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+/* Раскладка верификации */
+.verification-layout {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+}
+
+.document-preview {
+    flex: 1;
+    padding: 1rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.5rem;
+    background-color: #f8f9fa;
+}
+
+.verification-form {
+    flex: 2;
+}
+
+/* Drag-and-drop зона */
+.upload-area {
+    border: 2px dashed #ced4da;
+    padding: 2rem;
+    text-align: center;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.upload-area:hover {
+    background-color: #f8f9fa;
+    border-color: #0d6efd;
+}
+
+/* Стиль для блока ошибок валидации при утверждении */
+.validation-errors {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 0.75rem;
+    border: 1px solid #f5c6cb;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .verification-layout {
+        flex-direction: column;
+    }
+}

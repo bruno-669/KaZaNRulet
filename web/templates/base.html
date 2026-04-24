@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KaZaNRulet – Умная бухгалтерия</title>
+    <!-- Pico.css v2 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <!-- Кастомные стили -->
+    <link rel="stylesheet" href="/static/css/custom.css">
+    <style>
+        /* Индикатор загрузки HTMX */
+        #htmx-indicator {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            text-align: center;
+            padding: 0.5rem;
+            font-size: 1.2rem;
+            z-index: 9999;
+        }
+        .htmx-request #htmx-indicator {
+            display: block;
+        }
+        .htmx-indicator {
+            opacity: 0.5;
+            transition: opacity 200ms ease-in;
+        }
+    </style>
+</head>
+<body>
+    <!-- Индикатор загрузки HTMX -->
+    <div id="htmx-indicator" class="htmx-indicator">Загрузка...</div>
+
+    <header class="container">
+        <nav>
+            <ul>
+                <li><strong>KaZaNRulet – Умная бухгалтерия</strong></li>
+            </ul>
+        </nav>
+    </header>
+    <main class="container">
+        {{block "content" .}}{{end}}
+    </main>
+</body>
+</html>

@@ -1,0 +1,10 @@
+<!-- Частичный шаблон: только строки таблицы документов -->
+<tbody id="document-rows">
+    {{range .Documents}}
+    <tr>
+        <td>{{.FileName}}</td>
+        <td><span class="status-{{.Status}}">{{.Status}}</span></td>
+        <td><a href="/verify/{{.ID}}" role="button">Проверить</a></td>
+    </tr>
+    {{end}}
+</tbody>

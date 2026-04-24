@@ -1,0 +1,18 @@
+<!-- web/templates/results_page.html -->
+{{define "content"}}
+<h2>Документ обработан и утверждён</h2>
+<h3>Документ №{{.Document.Number}}</h3>
+
+<p>{{.Message}}</p>
+
+<div>
+    <a href="/export/{{.Document.ID}}/json" role="button">Скачать JSON</a>
+    <a href="/export/{{.Document.ID}}/csv" role="button">Скачать CSV</a>
+    <a href="/export/{{.Document.ID}}/xml" role="button">Скачать XML</a>
+    <a href="/export/{{.Document.ID}}/xlsx" role="button">Скачать Excel (.xlsx)</a>
+</div>
+
+<br>
+<a href="/">Вернуться к списку</a>
+{{end}}
+{{template "base.html" .}}
