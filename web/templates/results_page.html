@@ -1,7 +1,12 @@
-<!-- web/templates/results_page.html -->
 {{define "content"}}
 <h2>Документ обработан и утверждён</h2>
-<h3>Документ №{{.Document.Number}}</h3>
+{{$num := ""}}
+{{range .Document.Fields}}
+    {{if eq .Name "number"}}
+        {{$num = .Value}}
+    {{end}}
+{{end}}
+<h3>Документ №{{$num}}</h3>
 
 <p>{{.Message}}</p>
 

@@ -2,21 +2,15 @@
 package main
 
 import (
-	"accounting-doc-processor/internal/handler"
-	"accounting-doc-processor/internal/pkg/logger"
 	"flag"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
-)
 
-var (
-	Host     = "localhost"
-	Port     = "5433"
-	User     = "ilalaguzin"
-	Password = "12345"
-	DBName   = "medvisitlog_db"
+	"accounting-doc-processor/internal/handler"
+	"accounting-doc-processor/internal/pkg/logger"
+	"accounting-doc-processor/internal/service/datamanager"
 )
 
 type responseWriter struct {
@@ -42,8 +36,9 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	debug := flag.Bool("debug", false, "enable debug mod")
+	debug := flag.Bool("debug", false, "enable debug mode")
 	flag.Parse()
+
 	cleanup, err := logger.InitLogger(*debug)
 	if err != nil {
 		panic("ERROR logger" + err.Error())
@@ -52,7 +47,11 @@ func main() {
 
 	slog.Info("Start program")
 
-	// Раздельные кэши шаблонов, чтобы избежать конфликта блоков "content"
+	// Инициализируем репозиторий документов и внедряем в обработчики
+	repo := datamanager.NewMemoryDocRepo()
+	handler.SetDocumentRepo(repo)
+
+	// Парсим шаблоны
 	handler.TmplUpload = template.Must(template.ParseFiles(
 		"web/templates/base.html",
 		"web/templates/upload_page.html",

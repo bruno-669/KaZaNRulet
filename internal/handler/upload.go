@@ -10,11 +10,13 @@ import (
 	"strings"
 
 	"accounting-doc-processor/internal/model"
+	"accounting-doc-processor/internal/service/aiextractor"
+	"accounting-doc-processor/internal/service/documentprocessor"
 )
 
 // FileListPartialHandler returns an HTML fragment with the document table.
 func FileListPartialHandler(w http.ResponseWriter, r *http.Request) {
-	documents := GetAllDocuments()
+	documents := DocRepo.GetAll()
 
 	data := struct {
 		Documents []model.Document
@@ -74,12 +76,33 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Создаём запись документа
 	doc := model.Document{
 		FileName: fileName,
-		Status:   "ready",
+		Status:   "ready", // будет изменён в процессе обработки
 	}
-	newID := AddDocument(doc)
+	newID := DocRepo.Add(doc)
 	slog.Info("File saved, document record created", "id", newID, "filename", fileName)
+
+	// Запускаем локальную обработку (заглушку AI)
+	storedDoc, ok := DocRepo.Get(newID)
+	if !ok {
+		slog.Error("Failed to retrieve just created document", "id", newID)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	client := &aiextractor.LocalClient{}
+	processedDoc, err := documentprocessor.ProcessDocument(storedDoc, client, destPath)
+	if err != nil {
+		slog.Warn("Document processed with errors, keeping result", "id", newID, "error", err)
+	}
+
+	if err := DocRepo.Replace(newID, processedDoc); err != nil {
+		slog.Error("Failed to update document after processing", "id", newID, "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 
 	// Возвращаем обновлённый фрагмент таблицы
 	FileListPartialHandler(w, r)
@@ -100,7 +123,7 @@ func FileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	doc, ok := GetDocument(id)
+	doc, ok := DocRepo.Get(id)
 	if !ok || doc.FileName == "" {
 		http.NotFound(w, r)
 		return

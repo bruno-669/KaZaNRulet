@@ -29,7 +29,7 @@ func UpdateFieldHandler(w http.ResponseWriter, r *http.Request) {
 	fieldName := parts[2]
 	value := r.FormValue("value")
 
-	errMsg, _, err := UpdateDocumentField(id, fieldName, value)
+	errMsg, _, err := DocRepo.UpdateField(id, fieldName, value)
 	if err != nil {
 		// Не удалось найти документ или другая внутренняя ошибка
 		slog.Error("UpdateDocumentField failed", "id", id, "field", fieldName, "error", err)
@@ -62,7 +62,7 @@ func ApproveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Проверка полей документа
-	validationErrors := ValidateDocument(id)
+	validationErrors := DocRepo.Validate(id)
 	if len(validationErrors) > 0 {
 		slog.Warn("Validation failed before approve", "id", id, "errors", validationErrors)
 
@@ -78,7 +78,7 @@ func ApproveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ошибок нет — утверждаем документ
-	err = ApproveDocument(id)
+	err = DocRepo.Approve(id)
 	if err != nil {
 		slog.Error("ApproveDocument failed", "id", id, "error", err)
 		http.Error(w, "Document not found", http.StatusNotFound)

@@ -1,9 +1,15 @@
 {{define "content"}}
 <h2>Верификация документа</h2>
+{{$number := "--"}}
+{{range .Document.Fields}}
+    {{if eq .Name "number"}}
+        {{$number = .Value}}
+    {{end}}
+{{end}}
+<p><strong>Документ №{{$number}}</strong></p>
 
 <div class="verification-layout">
     <div class="document-preview">
-        <p><strong>Документ №{{.Document.Number}}</strong></p>
         {{if eq .Document.FileExt "pdf"}}
             <iframe src="/files/{{.Document.ID}}" width="100%" height="600px" style="border:1px solid #ccc;"></iframe>
         {{else}}
@@ -13,140 +19,33 @@
 
     <div class="verification-form">
         <form>
-            <!-- Номер документа -->
-            <div class="field-group">
-                <label for="number">Номер документа</label>
-                <input type="text" id="number" name="number" 
-                       value="{{.Document.Number}}"
-                       hx-put="/verify/{{.Document.ID}}/fields/number"
-                       hx-trigger="change"
-                       hx-target="#err-number"
-                       hx-swap="outerHTML"
+            {{range $i, $f := .Document.Fields}}
+            <div class="field-group {{if not $f.Valid}}field-error{{end}}">
+                <label for="field-{{$i}}">{{$f.Label}}</label>
+                {{if eq $f.Type "date"}}
+                <input type="date" id="field-{{$i}}" name="{{$f.Name}}" value="{{$f.Value}}"
+                       hx-put="/verify/{{$.Document.ID}}/fields/{{$f.Name}}"
+                       hx-trigger="change" hx-target="#err-{{$i}}" hx-swap="outerHTML"
                        hx-indicator="#htmx-indicator">
-                <span id="err-number"></span>
-            </div>
-
-            <!-- Дата -->
-            <div class="field-group">
-                <label for="date">Дата</label>
-                <input type="date" id="date" name="date" 
-                       value="{{.Document.Date}}"
-                       hx-put="/verify/{{.Document.ID}}/fields/date"
-                       hx-trigger="change"
-                       hx-target="#err-date"
-                       hx-swap="outerHTML"
+                {{else if or (eq $f.Type "number") (eq $f.Type "amount")}}
+                <input type="number" step="any" id="field-{{$i}}" name="{{$f.Name}}" value="{{$f.Value}}"
+                       hx-put="/verify/{{$.Document.ID}}/fields/{{$f.Name}}"
+                       hx-trigger="change" hx-target="#err-{{$i}}" hx-swap="outerHTML"
                        hx-indicator="#htmx-indicator">
-                <span id="err-date"></span>
-            </div>
-
-            <!-- Поставщик -->
-            <div class="field-group">
-                <label for="supplier">Поставщик</label>
-                <input type="text" id="supplier" name="supplier" 
-                       value="{{.Document.Supplier}}"
-                       hx-put="/verify/{{.Document.ID}}/fields/supplier"
-                       hx-trigger="change"
-                       hx-target="#err-supplier"
-                       hx-swap="outerHTML"
+                {{else}}
+                <input type="text" id="field-{{$i}}" name="{{$f.Name}}" value="{{$f.Value}}"
+                       hx-put="/verify/{{$.Document.ID}}/fields/{{$f.Name}}"
+                       hx-trigger="change" hx-target="#err-{{$i}}" hx-swap="outerHTML"
                        hx-indicator="#htmx-indicator">
-                <span id="err-supplier"></span>
+                {{end}}
+                <span id="err-{{$i}}">
+                    {{if not $f.Valid}}<span class="error-text">{{$f.Error}}</span>{{end}}
+                </span>
             </div>
+            {{end}}
 
-            <!-- ИНН поставщика -->
-            <div class="field-group">
-                <label for="supplier_inn">ИНН поставщика</label>
-                <input type="text" id="supplier_inn" name="supplier_inn" 
-                       value="{{.Document.SupplierINN}}"
-                       hx-put="/verify/{{.Document.ID}}/fields/supplier_inn"
-                       hx-trigger="change"
-                       hx-target="#err-supplier_inn"
-                       hx-swap="outerHTML"
-                       hx-indicator="#htmx-indicator">
-                <span id="err-supplier_inn"></span>
-            </div>
-
-            <!-- Покупатель -->
-            <div class="field-group">
-                <label for="buyer">Покупатель</label>
-                <input type="text" id="buyer" name="buyer" 
-                       value="{{.Document.Buyer}}"
-                       hx-put="/verify/{{.Document.ID}}/fields/buyer"
-                       hx-trigger="change"
-                       hx-target="#err-buyer"
-                       hx-swap="outerHTML"
-                       hx-indicator="#htmx-indicator">
-                <span id="err-buyer"></span>
-            </div>
-
-            <!-- ИНН покупателя -->
-            <div class="field-group">
-                <label for="buyer_inn">ИНН покупателя</label>
-                <input type="text" id="buyer_inn" name="buyer_inn" 
-                       value="{{.Document.BuyerINN}}"
-                       hx-put="/verify/{{.Document.ID}}/fields/buyer_inn"
-                       hx-trigger="change"
-                       hx-target="#err-buyer_inn"
-                       hx-swap="outerHTML"
-                       hx-indicator="#htmx-indicator">
-                <span id="err-buyer_inn"></span>
-            </div>
-
-            <!-- Наименование товара -->
-            <div class="field-group">
-                <label for="item_name">Наименование товара (строка 1)</label>
-                <input type="text" id="item_name" name="item_name" 
-                       value="{{.Document.ItemName}}"
-                       hx-put="/verify/{{.Document.ID}}/fields/item_name"
-                       hx-trigger="change"
-                       hx-target="#err-item_name"
-                       hx-swap="outerHTML"
-                       hx-indicator="#htmx-indicator">
-                <span id="err-item_name"></span>
-            </div>
-
-            <!-- Количество -->
-            <div class="field-group">
-                <label for="quantity">Количество</label>
-                <input type="number" step="any" id="quantity" name="quantity" 
-                       value="{{.Document.Quantity}}"
-                       hx-put="/verify/{{.Document.ID}}/fields/quantity"
-                       hx-trigger="change"
-                       hx-target="#err-quantity"
-                       hx-swap="outerHTML"
-                       hx-indicator="#htmx-indicator">
-                <span id="err-quantity"></span>
-            </div>
-
-            <!-- Цена -->
-            <div class="field-group">
-                <label for="price">Цена</label>
-                <input type="number" step="any" id="price" name="price" 
-                       value="{{.Document.Price}}"
-                       hx-put="/verify/{{.Document.ID}}/fields/price"
-                       hx-trigger="change"
-                       hx-target="#err-price"
-                       hx-swap="outerHTML"
-                       hx-indicator="#htmx-indicator">
-                <span id="err-price"></span>
-            </div>
-
-            <!-- Общая сумма -->
-            <div class="field-group">
-                <label for="total_sum">Общая сумма</label>
-                <input type="number" step="any" id="total_sum" name="total_sum" 
-                       value="{{.Document.TotalSum}}"
-                       hx-put="/verify/{{.Document.ID}}/fields/total_sum"
-                       hx-trigger="change"
-                       hx-target="#err-total_sum"
-                       hx-swap="outerHTML"
-                       hx-indicator="#htmx-indicator">
-                <span id="err-total_sum"></span>
-            </div>
-
-            <!-- Блок для отображения ошибок валидации перед утверждением -->
             <div id="validation-errors"></div>
 
-            <!-- Кнопка утверждения, ошибки попадают в #validation-errors -->
             <button type="button"
                     hx-post="/verify/{{.Document.ID}}/approve"
                     hx-target="#validation-errors"

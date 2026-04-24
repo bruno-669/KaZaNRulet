@@ -9,7 +9,16 @@ import (
 	"strings"
 
 	"accounting-doc-processor/internal/model"
+	"accounting-doc-processor/internal/service/datamanager"
 )
+
+// DocRepo – глобальный репозиторий, используемый обработчиками.
+var DocRepo datamanager.DocumentRepository
+
+// SetDocumentRepo устанавливает реализацию репозитория.
+func SetDocumentRepo(repo datamanager.DocumentRepository) {
+	DocRepo = repo
+}
 
 // Раздельные шаблоны для каждой страницы, чтобы избежать конфликта блоков "content".
 var (
@@ -21,7 +30,7 @@ var (
 
 // UploadPageHandler renders the upload page with a list of example documents.
 func UploadPageHandler(w http.ResponseWriter, r *http.Request) {
-	documents := GetAllDocuments()
+	documents := DocRepo.GetAll()
 
 	pageData := struct {
 		Documents []model.Document
@@ -50,7 +59,7 @@ func VerificationPageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	doc, ok := GetDocument(id)
+	doc, ok := DocRepo.Get(id)
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -84,7 +93,7 @@ func ResultsPageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	doc, ok := GetDocument(id)
+	doc, ok := DocRepo.Get(id)
 	if !ok {
 		http.NotFound(w, r)
 		return

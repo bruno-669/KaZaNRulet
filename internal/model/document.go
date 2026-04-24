@@ -1,27 +1,31 @@
 package model
 
-// Document represents an extracted accounting document with fields
-// that can be displayed on verification and results pages.
-type Document struct {
-	ID          int     `json:"id"`
-	FileName    string  `json:"file_name"`
-	FileExt     string  `json:"file_ext"` // расширение файла: "pdf", "jpg", "png" и т.д.
-	Status      string  `json:"status"`   // "processing", "ready", "approved"
-	Number      string  `json:"number"`
-	Date        string  `json:"date"`
-	Supplier    string  `json:"supplier"`
-	SupplierINN string  `json:"supplier_inn"`
-	Buyer       string  `json:"buyer"`
-	BuyerINN    string  `json:"buyer_inn"`
-	ItemName    string  `json:"item_name"`
-	Quantity    float64 `json:"quantity"`
-	Price       float64 `json:"price"`
-	TotalSum    float64 `json:"total_sum"`
+// FieldType определяет тип вводимых данных для поля.
+type FieldType string
+
+const (
+	FieldText   FieldType = "text"   // произвольный текст
+	FieldInn    FieldType = "inn"    // ИНН (10 или 12 цифр)
+	FieldDate   FieldType = "date"   // дата в формате YYYY-MM-DD
+	FieldNumber FieldType = "number" // целое или дробное число
+	FieldAmount FieldType = "amount" // денежная сумма (аналогично number)
+)
+
+// Field представляет одно извлекаемое поле документа.
+type Field struct {
+	Name  string    `json:"name"`            // внутреннее имя (например "supplier_inn")
+	Label string    `json:"label"`           // человекочитаемое название
+	Value string    `json:"value"`           // текущее значение
+	Type  FieldType `json:"type"`            // тип поля
+	Valid bool      `json:"valid"`           // флаг валидности
+	Error string    `json:"error,omitempty"` // текст ошибки валидации
 }
 
-type Field struct {
-	Name    string
-	Value   string
-	IsValid bool
-	Error   string
+// Document представляет бухгалтерский документ с динамическим набором полей.
+type Document struct {
+	ID       int     `json:"id"`
+	FileName string  `json:"file_name"`
+	FileExt  string  `json:"file_ext"` // расширение файла: pdf, jpg и т.д.
+	Status   string  `json:"status"`   // processing, ready, approved
+	Fields   []Field `json:"fields"`   // список распознанных полей
 }

@@ -1,4 +1,3 @@
-// internal/handler/export.go
 package handler
 
 import (
@@ -13,7 +12,6 @@ import (
 	"accounting-doc-processor/internal/model"
 )
 
-// ExportHandler handles GET /export/{id}/{format}
 func ExportHandler(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/export/")
 	parts := strings.SplitN(path, "/", 2)
@@ -30,7 +28,7 @@ func ExportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	doc, ok := GetDocument(id)
+	doc, ok := DocRepo.Get(id)
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -69,66 +67,46 @@ func exportJSON(w http.ResponseWriter, doc model.Document) {
 
 func exportCSV(w http.ResponseWriter, doc model.Document) {
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	fmt.Fprintf(w, "ID,FileName,FileExt,Status,Number,Date,Supplier,SupplierINN,Buyer,BuyerINN,ItemName,Quantity,Price,TotalSum\n")
-	fmt.Fprintf(w, "%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%.2f,%.2f,%.2f\n",
-		doc.ID,
+	// Заголовки из названий полей
+	headers := []string{"ID", "FileName", "FileExt", "Status"}
+	values := []string{
+		strconv.Itoa(doc.ID),
 		escapeCSV(doc.FileName),
 		escapeCSV(doc.FileExt),
 		escapeCSV(doc.Status),
-		escapeCSV(doc.Number),
-		escapeCSV(doc.Date),
-		escapeCSV(doc.Supplier),
-		escapeCSV(doc.SupplierINN),
-		escapeCSV(doc.Buyer),
-		escapeCSV(doc.BuyerINN),
-		escapeCSV(doc.ItemName),
-		doc.Quantity,
-		doc.Price,
-		doc.TotalSum,
-	)
-}
-
-func escapeCSV(s string) string {
-	if strings.ContainsAny(s, ",\"\n") {
-		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
 	}
-	return s
+	for _, f := range doc.Fields {
+		headers = append(headers, f.Name)
+		values = append(values, escapeCSV(f.Value))
+	}
+	fmt.Fprintf(w, "%s\n", strings.Join(headers, ","))
+	fmt.Fprintf(w, "%s\n", strings.Join(values, ","))
 }
 
 func exportXML(w http.ResponseWriter, doc model.Document) {
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	type xmlField struct {
+		Name  string `xml:"name,attr"`
+		Value string `xml:",chardata"`
+	}
 	type xmlDocument struct {
-		XMLName     xml.Name `xml:"Document"`
-		ID          int      `xml:"ID"`
-		FileName    string   `xml:"FileName"`
-		FileExt     string   `xml:"FileExt"`
-		Status      string   `xml:"Status"`
-		Number      string   `xml:"Number"`
-		Date        string   `xml:"Date"`
-		Supplier    string   `xml:"Supplier"`
-		SupplierINN string   `xml:"SupplierINN"`
-		Buyer       string   `xml:"Buyer"`
-		BuyerINN    string   `xml:"BuyerINN"`
-		ItemName    string   `xml:"ItemName"`
-		Quantity    float64  `xml:"Quantity"`
-		Price       float64  `xml:"Price"`
-		TotalSum    float64  `xml:"TotalSum"`
+		XMLName  xml.Name   `xml:"Document"`
+		ID       int        `xml:"ID"`
+		FileName string     `xml:"FileName"`
+		FileExt  string     `xml:"FileExt"`
+		Status   string     `xml:"Status"`
+		Fields   []xmlField `xml:"Fields>Field"`
+	}
+	fields := make([]xmlField, len(doc.Fields))
+	for i, f := range doc.Fields {
+		fields[i] = xmlField{Name: f.Name, Value: f.Value}
 	}
 	x := xmlDocument{
-		ID:          doc.ID,
-		FileName:    doc.FileName,
-		FileExt:     doc.FileExt,
-		Status:      doc.Status,
-		Number:      doc.Number,
-		Date:        doc.Date,
-		Supplier:    doc.Supplier,
-		SupplierINN: doc.SupplierINN,
-		Buyer:       doc.Buyer,
-		BuyerINN:    doc.BuyerINN,
-		ItemName:    doc.ItemName,
-		Quantity:    doc.Quantity,
-		Price:       doc.Price,
-		TotalSum:    doc.TotalSum,
+		ID:       doc.ID,
+		FileName: doc.FileName,
+		FileExt:  doc.FileExt,
+		Status:   doc.Status,
+		Fields:   fields,
 	}
 	encoder := xml.NewEncoder(w)
 	encoder.Indent("", "  ")
@@ -141,5 +119,19 @@ func exportXML(w http.ResponseWriter, doc model.Document) {
 
 func exportXLSX(w http.ResponseWriter, doc model.Document) {
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	fmt.Fprintf(w, "XLSX stub for document %s", doc.Number)
+	numberLabel := "без номера"
+	for _, f := range doc.Fields {
+		if f.Name == "number" {
+			numberLabel = f.Value
+			break
+		}
+	}
+	fmt.Fprintf(w, "XLSX stub for document %s", numberLabel)
+}
+
+func escapeCSV(s string) string {
+	if strings.ContainsAny(s, ",\"\n") {
+		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+	}
+	return s
 }

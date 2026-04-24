@@ -6,11 +6,13 @@
     <form enctype="multipart/form-data" 
           hx-post="/upload" 
           hx-target="#document-rows" 
-          hx-swap="outerHTML">
+          hx-swap="outerHTML"
+          id="upload-form">
         <input type="file" name="documents" id="file-input" multiple hidden>
         <button type="button" onclick="document.getElementById('file-input').click();">Выбрать файлы</button>
         <button type="submit">Загрузить</button>
     </form>
+    <ul id="file-list" style="list-style:none;padding:0;margin-top:1rem;"></ul>
 </div>
 
 <table>
@@ -34,4 +36,70 @@
         {{end}}
     </tbody>
 </table>
+
+<script>
+(function() {
+    const dropArea = document.querySelector('.upload-area');
+    const fileInput = document.getElementById('file-input');
+    const fileList = document.getElementById('file-list');
+    const form = document.getElementById('upload-form');
+
+    // Функция отображения имён файлов
+    function showFiles(files) {
+        fileList.innerHTML = '';
+        for (const file of files) {
+            const li = document.createElement('li');
+            li.textContent = file.name;
+            li.style.padding = '0.2rem 0';
+            fileList.appendChild(li);
+        }
+    }
+
+    // Функция загрузки файлов в скрытый input (единственный кроссбраузерный способ)
+    function setFileInput(files) {
+        const dt = new DataTransfer();
+        for (const file of files) {
+            dt.items.add(file);
+        }
+        fileInput.files = dt.files;
+    }
+
+    // Выбор через диалог
+    fileInput.addEventListener('change', (e) => {
+        if (fileInput.files.length > 0) {
+            showFiles(fileInput.files);
+        } else {
+            fileList.innerHTML = '';
+        }
+    });
+
+    // Drag & Drop
+    dropArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropArea.classList.add('dragover');
+    });
+
+    dropArea.addEventListener('dragleave', () => {
+        dropArea.classList.remove('dragover');
+    });
+
+    dropArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            setFileInput(e.dataTransfer.files);
+            showFiles(e.dataTransfer.files);
+        }
+    });
+
+    // Очистка после успешной загрузки (HTMX-событие)
+    document.body.addEventListener('htmx:afterRequest', (evt) => {
+        if (evt.detail.target === form) {
+            // Очищаем список и input
+            fileList.innerHTML = '';
+            fileInput.value = ''; // очистка
+        }
+    });
+})();
+</script>
 {{end}}
