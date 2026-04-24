@@ -160,6 +160,8 @@ func ApproveDocument(id int) error {
 	}
 	doc.Status = "approved"
 	docStore.docs[id] = doc
+
+	slog.Info("Document approved", "id", id) // уже было, оставляем
 	return nil
 }
 
@@ -177,6 +179,11 @@ func AddDocument(doc model.Document) int {
 	}
 	doc.ID = newID
 
+	// Если статус не задан, ставим "ready" по умолчанию
+	if doc.Status == "" {
+		doc.Status = "ready"
+	}
+
 	// Если FileExt не задан, определяем из имени файла
 	if doc.FileExt == "" && doc.FileName != "" {
 		ext := filepath.Ext(doc.FileName)
@@ -188,6 +195,10 @@ func AddDocument(doc model.Document) int {
 	}
 
 	docStore.docs[newID] = doc
+
+	// Логируем создание документа с его статусом
+	slog.Info("Document uploaded with status", "id", newID, "status", doc.Status)
+
 	return newID
 }
 
@@ -199,7 +210,12 @@ func parseFloat(s string) float64 {
 	return f
 }
 
+// validateField проверяет корректность значения поля.
+// Пустое значение считается допустимым (поле не распознано) и не вызывает ошибки.
 func validateField(fieldName, value string) string {
+	if value == "" {
+		return "" // пустые поля допустимы
+	}
 	switch fieldName {
 	case "supplier_inn", "buyer_inn":
 		if !isValidINN(value) {
@@ -218,7 +234,11 @@ func validateField(fieldName, value string) string {
 	return ""
 }
 
+// isValidINN проверяет формат ИНН. Пустая строка считается корректной.
 func isValidINN(inn string) bool {
+	if inn == "" {
+		return true
+	}
 	if len(inn) != 10 && len(inn) != 12 {
 		return false
 	}
@@ -230,11 +250,16 @@ func isValidINN(inn string) bool {
 	return true
 }
 
+// isValidDate проверяет формат даты. Пустая строка считается корректной.
 func isValidDate(date string) bool {
+	if date == "" {
+		return true
+	}
 	_, err := time.Parse("2006-01-02", date)
 	return err == nil
 }
 
+// ValidateDocument возвращает список ошибок для всех полей документа, которые должны быть проверены.
 func ValidateDocument(id int) []string {
 	doc, ok := GetDocument(id)
 	if !ok {

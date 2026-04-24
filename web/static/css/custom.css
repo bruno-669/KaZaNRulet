@@ -26,6 +26,16 @@
     font-weight: bold;
 }
 
+/* Fallback-статус для неизвестных значений */
+.status-unknown {
+    background-color: #6c757d;
+    color: white;
+    padding: 0.2em 0.6em;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: bold;
+}
+
 /* Группа полей */
 .field-group {
     margin-bottom: 1rem;

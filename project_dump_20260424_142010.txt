@@ -1,0 +1,1798 @@
+=============== PROJECT DUMP ===============
+Generated: Fri Apr 24 14:20:10 MSK 2026
+Root: /Users/ilalaguzin/Documents/KaZaNRulet
+============================================
+
+Project structure (tree):
+.
+├── cmd
+│   └── server
+│       └── main.go
+├── docker
+│   ├── Dockerfile
+│   └── docker-compose.yaml
+├── docs
+│   ├── api.md
+│   ├── architecture.md
+│   └── deployment.md
+├── internal
+│   ├── config
+│   │   ├── config.go
+│   │   └── config.yaml
+│   ├── handler
+│   │   ├── document.go
+│   │   ├── export.go
+│   │   ├── pages.go
+│   │   ├── store.go
+│   │   ├── upload.go
+│   │   ├── validation.go
+│   │   └── verification.go
+│   ├── model
+│   │   ├── document.go
+│   │   ├── export.go
+│   │   ├── field.go
+│   │   └── validation.go
+│   ├── pkg
+│   │   └── logger
+│   │       └── logger.go
+│   ├── repository
+│   │   ├── postgres
+│   │   │   ├── migrations
+│   │   │   │   ├── 001_init.down.sql
+│   │   │   │   └── 001_init.up.sql
+│   │   │   ├── document.go
+│   │   │   └── field.go
+│   │   └── sqlite
+│   │       ├── migrations
+│   │       │   ├── 001_init.down.sql
+│   │       │   └── 001_init.up.sql
+│   │       ├── document.go
+│   │       └── field.go
+│   ├── service
+│   │   ├── aiextractor
+│   │   │   ├── client.go
+│   │   │   ├── fallback.go
+│   │   │   ├── local_client.go
+│   │   │   ├── openai_client.go
+│   │   │   ├── prompt.go
+│   │   │   └── response_parser.go
+│   │   ├── datamanager
+│   │   │   ├── batch.go
+│   │   │   ├── document_repo.go
+│   │   │   ├── field_repo.go
+│   │   │   └── history.go
+│   │   ├── documentprocessor
+│   │   │   ├── pipeline.go
+│   │   │   ├── preprocessor.go
+│   │   │   ├── status.go
+│   │   │   └── worker.go
+│   │   ├── exporter
+│   │   │   ├── csv_writer.go
+│   │   │   ├── excel_writer.go
+│   │   │   ├── exporter.go
+│   │   │   ├── json_writer.go
+│   │   │   ├── naming.go
+│   │   │   └── xml_writer.go
+│   │   ├── filemanager
+│   │   │   ├── local_storage.go
+│   │   │   ├── storage.go
+│   │   │   ├── thumbnail.go
+│   │   │   └── uploader.go
+│   │   └── validator
+│   │       ├── date.go
+│   │       ├── inn.go
+│   │       ├── marker.go
+│   │       ├── numeric.go
+│   │       └── validator.go
+│   └── worker
+│       ├── job.go
+│       └── pool.go
+├── test
+│   ├── fixtures
+│   ├── integration
+│   │   ├── export_test.go
+│   │   ├── pipeline_test.go
+│   │   └── upload_test.go
+│   └── mocks
+│       ├── ai_client_mock.go
+│       └── storage_mock.go
+├── web
+│   ├── public
+│   │   └── assets
+│   ├── src
+│   │   ├── components
+│   │   ├── pages
+│   │   ├── services
+│   │   └── utils
+│   ├── static
+│   │   └── css
+│   │       └── custom.css
+│   ├── templates
+│   │   ├── _layout.html
+│   │   ├── base.html
+│   │   ├── file_list_partial.html
+│   │   ├── results_page.html
+│   │   ├── upload_page.html
+│   │   └── verification_page.html
+│   ├── testdocs
+│   │   ├── act_007.pdf
+│   │   ├── contract_001.pdf
+│   │   └── invoice_042.pdf
+│   ├── uploads
+│   │   ├── 113 шк 22004.pdf
+│   │   ├── 135-45255-сф720 от 10.06.22-сантех, смесители.pdf
+│   │   ├── 2026-04-24 10.25.55.jpg
+│   │   ├── Дс365 А 22г.pdf
+│   │   └── Положение о проведении Хакатона.pdf
+│   ├── package-lock.json
+│   └── package.json
+├── .gitignore
+├── Makefile
+├── README.md
+├── go.mod
+├── go.sum
+├── project_dump.sh
+├── project_dump_20260424_142010.txt
+└── server
+
+41 directories, 89 files
+
+=============== FILE CONTENTS ===============
+
+--- SKIPPED BINARY: ./cmd/.DS_Store ---
+--- FILE: ./cmd/server/main.go ---
+// cmd/server/main.go
+package main
+
+import (
+	"accounting-doc-processor/internal/handler"
+	"accounting-doc-processor/internal/pkg/logger"
+	"flag"
+	"html/template"
+	"log/slog"
+	"net/http"
+	"os"
+)
+
+var (
+	Host     = "localhost"
+	Port     = "5433"
+	User     = "ilalaguzin"
+	Password = "12345"
+	DBName   = "medvisitlog_db"
+)
+
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(wrapped, r)
+		slog.Info("Request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", wrapped.statusCode,
+		)
+	})
+}
+
+func main() {
+	debug := flag.Bool("debug", false, "enable debug mod")
+	flag.Parse()
+	cleanup, err := logger.InitLogger(*debug)
+	if err != nil {
+		panic("ERROR logger" + err.Error())
+	}
+	defer cleanup()
+
+	slog.Info("Start program")
+
+	// Раздельные кэши шаблонов, чтобы избежать конфликта блоков "content"
+	handler.TmplUpload = template.Must(template.ParseFiles(
+		"web/templates/base.html",
+		"web/templates/upload_page.html",
+	))
+	handler.TmplVerify = template.Must(template.ParseFiles(
+		"web/templates/base.html",
+		"web/templates/verification_page.html",
+	))
+	handler.TmplResults = template.Must(template.ParseFiles(
+		"web/templates/base.html",
+		"web/templates/results_page.html",
+	))
+	handler.TmplPartial = template.Must(template.ParseFiles(
+		"web/templates/file_list_partial.html",
+	))
+
+	mux := http.NewServeMux()
+
+	// Page handlers
+	mux.HandleFunc("/", handler.UploadPageHandler)
+	mux.HandleFunc("GET /verify/", handler.VerificationPageHandler)
+	mux.HandleFunc("PUT /verify/", handler.UpdateFieldHandler)
+	mux.HandleFunc("POST /verify/", handler.ApproveHandler)
+	mux.HandleFunc("/results/", handler.ResultsPageHandler)
+	mux.HandleFunc("GET /export/", handler.ExportHandler)
+	mux.HandleFunc("GET /files/", handler.FileHandler)
+	// HTMX partials & API
+	mux.HandleFunc("GET /partials/file-list", handler.FileListPartialHandler)
+	mux.HandleFunc("POST /upload", handler.UploadHandler)
+
+	// Static files
+	fs := http.FileServer(http.Dir("web/static"))
+	mux.Handle("/static/", http.StripPrefix("/static/", fs))
+
+	server := loggingMiddleware(mux)
+
+	slog.Info("Starting server on :8080")
+	if err := http.ListenAndServe(":8080", server); err != nil {
+		slog.Error("Server failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+--- FILE: ./go.mod ---
+module accounting-doc-processor
+
+go 1.26.1
+
+--- SKIPPED BINARY: ./docker/docker-compose.yaml ---
+--- SKIPPED BINARY: ./docker/Dockerfile ---
+--- SKIPPED BINARY: ./.DS_Store ---
+--- SKIPPED BINARY: ./test/mocks/storage_mock.go ---
+--- SKIPPED BINARY: ./test/mocks/ai_client_mock.go ---
+--- SKIPPED BINARY: ./test/integration/pipeline_test.go ---
+--- SKIPPED BINARY: ./test/integration/upload_test.go ---
+--- SKIPPED BINARY: ./test/integration/export_test.go ---
+--- SKIPPED BINARY: ./Makefile ---
+--- SKIPPED BINARY: ./web/uploads/Дс365 А 22г.pdf ---
+--- SKIPPED BINARY: ./web/uploads/Положение о проведении Хакатона.pdf ---
+--- SKIPPED BINARY: ./web/uploads/135-45255-сф720 от 10.06.22-сантех, смесители.pdf ---
+--- SKIPPED BINARY: ./web/uploads/2026-04-24 10.25.55.jpg ---
+--- SKIPPED BINARY: ./web/uploads/113 шк 22004.pdf ---
+--- SKIPPED BINARY: ./web/package.json ---
+--- FILE: ./web/static/css/custom.css ---
+/* Бейджи статусов */
+.status-processing {
+    background-color: #ffc107;
+    color: #000;
+    padding: 0.2em 0.6em;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: bold;
+}
+
+.status-ready {
+    background-color: #0d6efd;
+    color: #fff;
+    padding: 0.2em 0.6em;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: bold;
+}
+
+.status-approved {
+    background-color: #198754;
+    color: #fff;
+    padding: 0.2em 0.6em;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: bold;
+}
+
+/* Fallback-статус для неизвестных значений */
+.status-unknown {
+    background-color: #6c757d;
+    color: white;
+    padding: 0.2em 0.6em;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: bold;
+}
+
+/* Группа полей */
+.field-group {
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+}
+
+/* Ошибочное поле */
+.field-error {
+    border-color: #dc3545 !important;
+    color: #dc3545;
+}
+
+.field-error .error-text {
+    display: block;
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+/* Контейнер */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+/* Раскладка верификации */
+.verification-layout {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+}
+
+.document-preview {
+    flex: 1;
+    padding: 1rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.5rem;
+    background-color: #f8f9fa;
+}
+
+.verification-form {
+    flex: 2;
+}
+
+/* Drag-and-drop зона */
+.upload-area {
+    border: 2px dashed #ced4da;
+    padding: 2rem;
+    text-align: center;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.upload-area:hover {
+    background-color: #f8f9fa;
+    border-color: #0d6efd;
+}
+
+/* Стиль для блока ошибок валидации при утверждении */
+.validation-errors {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 0.75rem;
+    border: 1px solid #f5c6cb;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .verification-layout {
+        flex-direction: column;
+    }
+}
+--- SKIPPED BINARY: ./web/testdocs/invoice_042.pdf ---
+--- SKIPPED BINARY: ./web/testdocs/act_007.pdf ---
+--- SKIPPED BINARY: ./web/testdocs/contract_001.pdf ---
+--- FILE: ./web/templates/base.html ---
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KaZaNRulet – Умная бухгалтерия</title>
+    <!-- Pico.css v2 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <!-- Кастомные стили -->
+    <link rel="stylesheet" href="/static/css/custom.css">
+    <style>
+        /* Индикатор загрузки HTMX */
+        #htmx-indicator {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            text-align: center;
+            padding: 0.5rem;
+            font-size: 1.2rem;
+            z-index: 9999;
+        }
+        .htmx-request #htmx-indicator {
+            display: block;
+        }
+        .htmx-indicator {
+            opacity: 0.5;
+            transition: opacity 200ms ease-in;
+        }
+    </style>
+</head>
+<body>
+    <!-- Индикатор загрузки HTMX -->
+    <div id="htmx-indicator" class="htmx-indicator">Загрузка...</div>
+
+    <header class="container">
+        <nav>
+            <ul>
+                <li><strong>KaZaNRulet – Умная бухгалтерия</strong></li>
+            </ul>
+        </nav>
+    </header>
+    <main class="container">
+        {{block "content" .}}{{end}}
+    </main>
+</body>
+</html>
+--- FILE: ./web/templates/upload_page.html ---
+{{define "content"}}
+<h2>Загрузка документов</h2>
+
+<div class="upload-area">
+    <p>Перетащите файлы сюда или нажмите для выбора</p>
+    <form enctype="multipart/form-data" 
+          hx-post="/upload" 
+          hx-target="#document-rows" 
+          hx-swap="outerHTML">
+        <input type="file" name="documents" id="file-input" multiple hidden>
+        <button type="button" onclick="document.getElementById('file-input').click();">Выбрать файлы</button>
+        <button type="submit">Загрузить</button>
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Имя файла</th>
+            <th>Статус</th>
+            <th>Действие</th>
+        </tr>
+    </thead>
+    <tbody id="document-rows" 
+           hx-get="/partials/file-list" 
+           hx-trigger="every 5s" 
+           hx-swap="outerHTML">
+        {{range .Documents}}
+        <tr>
+            <td>{{.FileName}}</td>
+            <td><span class="status-{{.Status}}">{{.Status}}</span></td>
+            <td><a href="/verify/{{.ID}}" role="button">Проверить</a></td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{end}}
+--- SKIPPED BINARY: ./web/templates/_layout.html ---
+--- FILE: ./web/templates/results_page.html ---
+<!-- web/templates/results_page.html -->
+{{define "content"}}
+<h2>Документ обработан и утверждён</h2>
+<h3>Документ №{{.Document.Number}}</h3>
+
+<p>{{.Message}}</p>
+
+<div>
+    <a href="/export/{{.Document.ID}}/json" role="button">Скачать JSON</a>
+    <a href="/export/{{.Document.ID}}/csv" role="button">Скачать CSV</a>
+    <a href="/export/{{.Document.ID}}/xml" role="button">Скачать XML</a>
+    <a href="/export/{{.Document.ID}}/xlsx" role="button">Скачать Excel (.xlsx)</a>
+</div>
+
+<br>
+<a href="/">← Назад к списку</a>
+{{end}}
+--- FILE: ./web/templates/file_list_partial.html ---
+<!-- Частичный шаблон: только строки таблицы документов -->
+<tbody id="document-rows">
+    {{range .Documents}}
+    <tr>
+        <td>{{.FileName}}</td>
+        <td><span class="status-{{.Status}}">{{.Status}}</span></td>
+        <td><a href="/verify/{{.ID}}" role="button">Проверить</a></td>
+    </tr>
+    {{end}}
+</tbody>
+--- FILE: ./web/templates/verification_page.html ---
+{{define "content"}}
+<h2>Верификация документа</h2>
+
+<div class="verification-layout">
+    <div class="document-preview">
+        <p><strong>Документ №{{.Document.Number}}</strong></p>
+        {{if eq .Document.FileExt "pdf"}}
+            <iframe src="/files/{{.Document.ID}}" width="100%" height="600px" style="border:1px solid #ccc;"></iframe>
+        {{else}}
+            <img src="/files/{{.Document.ID}}" style="max-width:100%;" alt="Предпросмотр документа">
+        {{end}}
+    </div>
+
+    <div class="verification-form">
+        <form>
+            <!-- Номер документа -->
+            <div class="field-group">
+                <label for="number">Номер документа</label>
+                <input type="text" id="number" name="number" 
+                       value="{{.Document.Number}}"
+                       hx-put="/verify/{{.Document.ID}}/fields/number"
+                       hx-trigger="change"
+                       hx-target="#err-number"
+                       hx-swap="outerHTML"
+                       hx-indicator="#htmx-indicator">
+                <span id="err-number"></span>
+            </div>
+
+            <!-- Дата -->
+            <div class="field-group">
+                <label for="date">Дата</label>
+                <input type="date" id="date" name="date" 
+                       value="{{.Document.Date}}"
+                       hx-put="/verify/{{.Document.ID}}/fields/date"
+                       hx-trigger="change"
+                       hx-target="#err-date"
+                       hx-swap="outerHTML"
+                       hx-indicator="#htmx-indicator">
+                <span id="err-date"></span>
+            </div>
+
+            <!-- Поставщик -->
+            <div class="field-group">
+                <label for="supplier">Поставщик</label>
+                <input type="text" id="supplier" name="supplier" 
+                       value="{{.Document.Supplier}}"
+                       hx-put="/verify/{{.Document.ID}}/fields/supplier"
+                       hx-trigger="change"
+                       hx-target="#err-supplier"
+                       hx-swap="outerHTML"
+                       hx-indicator="#htmx-indicator">
+                <span id="err-supplier"></span>
+            </div>
+
+            <!-- ИНН поставщика -->
+            <div class="field-group">
+                <label for="supplier_inn">ИНН поставщика</label>
+                <input type="text" id="supplier_inn" name="supplier_inn" 
+                       value="{{.Document.SupplierINN}}"
+                       hx-put="/verify/{{.Document.ID}}/fields/supplier_inn"
+                       hx-trigger="change"
+                       hx-target="#err-supplier_inn"
+                       hx-swap="outerHTML"
+                       hx-indicator="#htmx-indicator">
+                <span id="err-supplier_inn"></span>
+            </div>
+
+            <!-- Покупатель -->
+            <div class="field-group">
+                <label for="buyer">Покупатель</label>
+                <input type="text" id="buyer" name="buyer" 
+                       value="{{.Document.Buyer}}"
+                       hx-put="/verify/{{.Document.ID}}/fields/buyer"
+                       hx-trigger="change"
+                       hx-target="#err-buyer"
+                       hx-swap="outerHTML"
+                       hx-indicator="#htmx-indicator">
+                <span id="err-buyer"></span>
+            </div>
+
+            <!-- ИНН покупателя -->
+            <div class="field-group">
+                <label for="buyer_inn">ИНН покупателя</label>
+                <input type="text" id="buyer_inn" name="buyer_inn" 
+                       value="{{.Document.BuyerINN}}"
+                       hx-put="/verify/{{.Document.ID}}/fields/buyer_inn"
+                       hx-trigger="change"
+                       hx-target="#err-buyer_inn"
+                       hx-swap="outerHTML"
+                       hx-indicator="#htmx-indicator">
+                <span id="err-buyer_inn"></span>
+            </div>
+
+            <!-- Наименование товара -->
+            <div class="field-group">
+                <label for="item_name">Наименование товара (строка 1)</label>
+                <input type="text" id="item_name" name="item_name" 
+                       value="{{.Document.ItemName}}"
+                       hx-put="/verify/{{.Document.ID}}/fields/item_name"
+                       hx-trigger="change"
+                       hx-target="#err-item_name"
+                       hx-swap="outerHTML"
+                       hx-indicator="#htmx-indicator">
+                <span id="err-item_name"></span>
+            </div>
+
+            <!-- Количество -->
+            <div class="field-group">
+                <label for="quantity">Количество</label>
+                <input type="number" step="any" id="quantity" name="quantity" 
+                       value="{{.Document.Quantity}}"
+                       hx-put="/verify/{{.Document.ID}}/fields/quantity"
+                       hx-trigger="change"
+                       hx-target="#err-quantity"
+                       hx-swap="outerHTML"
+                       hx-indicator="#htmx-indicator">
+                <span id="err-quantity"></span>
+            </div>
+
+            <!-- Цена -->
+            <div class="field-group">
+                <label for="price">Цена</label>
+                <input type="number" step="any" id="price" name="price" 
+                       value="{{.Document.Price}}"
+                       hx-put="/verify/{{.Document.ID}}/fields/price"
+                       hx-trigger="change"
+                       hx-target="#err-price"
+                       hx-swap="outerHTML"
+                       hx-indicator="#htmx-indicator">
+                <span id="err-price"></span>
+            </div>
+
+            <!-- Общая сумма -->
+            <div class="field-group">
+                <label for="total_sum">Общая сумма</label>
+                <input type="number" step="any" id="total_sum" name="total_sum" 
+                       value="{{.Document.TotalSum}}"
+                       hx-put="/verify/{{.Document.ID}}/fields/total_sum"
+                       hx-trigger="change"
+                       hx-target="#err-total_sum"
+                       hx-swap="outerHTML"
+                       hx-indicator="#htmx-indicator">
+                <span id="err-total_sum"></span>
+            </div>
+
+            <!-- Блок для отображения ошибок валидации перед утверждением -->
+            <div id="validation-errors"></div>
+
+            <!-- Кнопка утверждения, ошибки попадают в #validation-errors -->
+            <button type="button"
+                    hx-post="/verify/{{.Document.ID}}/approve"
+                    hx-target="#validation-errors"
+                    hx-indicator="#htmx-indicator">
+                Утвердить
+            </button>
+        </form>
+    </div>
+</div>
+
+<br>
+<a href="/">← Назад к списку</a>
+{{end}}
+--- FILE: ./internal/handler/upload.go ---
+package handler
+
+import (
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"accounting-doc-processor/internal/model"
+)
+
+// FileListPartialHandler returns an HTML fragment with the document table.
+func FileListPartialHandler(w http.ResponseWriter, r *http.Request) {
+	documents := GetAllDocuments()
+
+	data := struct {
+		Documents []model.Document
+	}{
+		Documents: documents,
+	}
+
+	// Используем TmplPartial, который содержит только file_list_partial.html
+	if err := TmplPartial.ExecuteTemplate(w, "file_list_partial.html", data); err != nil {
+		slog.Error("Failed to execute file list partial template", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// UploadHandler processes file upload and adds the document to the store.
+func UploadHandler(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 32<<20)
+
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		slog.Error("Failed to parse multipart form", "error", err)
+		http.Error(w, "File too large or bad request", http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("documents")
+	if err != nil {
+		slog.Error("Failed to get uploaded file", "error", err)
+		http.Error(w, "Missing file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	uploadDir := "web/uploads"
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		slog.Error("Failed to create upload directory", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	fileName := filepath.Base(header.Filename)
+	if fileName == "." || fileName == "/" {
+		fileName = "uploaded_file"
+	}
+	destPath := filepath.Join(uploadDir, fileName)
+
+	dst, err := os.Create(destPath)
+	if err != nil {
+		slog.Error("Failed to create destination file", "error", err, "path", destPath)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, file); err != nil {
+		slog.Error("Failed to save uploaded file", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	doc := model.Document{
+		FileName: fileName,
+		Status:   "ready",
+	}
+	newID := AddDocument(doc)
+	slog.Info("File saved, document record created", "id", newID, "filename", fileName)
+
+	// Возвращаем обновлённый фрагмент таблицы
+	FileListPartialHandler(w, r)
+}
+
+// FileHandler serves the document file by its ID.
+func FileHandler(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/files/")
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) < 1 || parts[0] == "" {
+		http.NotFound(w, r)
+		return
+	}
+	idStr := parts[0]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	doc, ok := GetDocument(id)
+	if !ok || doc.FileName == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	uploadPath := filepath.Join("web", "uploads", doc.FileName)
+	if _, err := os.Stat(uploadPath); err == nil {
+		slog.Info("Serving file from uploads", "id", id, "path", uploadPath)
+		http.ServeFile(w, r, uploadPath)
+		return
+	}
+
+	testPath := filepath.Join("web", "testdocs", doc.FileName)
+	if _, err := os.Stat(testPath); err == nil {
+		slog.Info("Serving file from testdocs", "id", id, "path", testPath)
+		http.ServeFile(w, r, testPath)
+		return
+	}
+
+	slog.Warn("File not found in uploads or testdocs", "doc_id", id, "file_name", doc.FileName)
+	http.NotFound(w, r)
+}
+
+--- FILE: ./internal/handler/verification.go ---
+// internal/handler/verification.go
+
+package handler
+
+import (
+	"fmt"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+)
+
+// UpdateFieldHandler handles PUT /verify/{id}/fields/{fieldName}
+// It updates a single field and returns an error span or empty span.
+func UpdateFieldHandler(w http.ResponseWriter, r *http.Request) {
+	// Путь вида /verify/123/fields/supplier_inn
+	path := strings.TrimPrefix(r.URL.Path, "/verify/")
+	parts := strings.Split(path, "/")
+	// Ожидаем: parts[0] = id, parts[1] = "fields", parts[2] = fieldName
+	if len(parts) < 3 || parts[1] != "fields" {
+		http.NotFound(w, r)
+		return
+	}
+	id, err := strconv.Atoi(parts[0])
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	fieldName := parts[2]
+	value := r.FormValue("value")
+
+	errMsg, _, err := UpdateDocumentField(id, fieldName, value)
+	if err != nil {
+		// Не удалось найти документ или другая внутренняя ошибка
+		slog.Error("UpdateDocumentField failed", "id", id, "field", fieldName, "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Возвращаем фрагмент с сообщением об ошибке
+	w.Header().Set("Content-Type", "text/html")
+	if errMsg != "" {
+		fmt.Fprintf(w, `<span class="error-text" id="err-%s">%s</span>`, fieldName, errMsg)
+	} else {
+		fmt.Fprintf(w, `<span id="err-%s"></span>`, fieldName)
+	}
+}
+
+// ApproveHandler handles POST /verify/{id}/approve
+// It approves the document and redirects to the results page via HX-Redirect.
+func ApproveHandler(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/verify/")
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) < 1 || parts[0] == "" {
+		http.NotFound(w, r)
+		return
+	}
+	id, err := strconv.Atoi(parts[0])
+	if err != nil || len(parts) < 2 || parts[1] != "approve" {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Проверка полей документа
+	validationErrors := ValidateDocument(id)
+	if len(validationErrors) > 0 {
+		slog.Warn("Validation failed before approve", "id", id, "errors", validationErrors)
+
+		// Формируем HTML со списком ошибок
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `<div class="validation-errors"><ul>`)
+		for _, e := range validationErrors {
+			fmt.Fprintf(w, `<li>%s</li>`, e)
+		}
+		fmt.Fprint(w, `</ul></div>`)
+		return
+	}
+
+	// Ошибок нет — утверждаем документ
+	err = ApproveDocument(id)
+	if err != nil {
+		slog.Error("ApproveDocument failed", "id", id, "error", err)
+		http.Error(w, "Document not found", http.StatusNotFound)
+		return
+	}
+
+	slog.Info("Document approved", "id", id)
+	w.Header().Set("HX-Redirect", fmt.Sprintf("/results/%d", id))
+	w.WriteHeader(http.StatusOK)
+}
+
+--- FILE: ./internal/handler/store.go ---
+package handler
+
+import (
+	"fmt"
+	"log/slog"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"accounting-doc-processor/internal/model"
+)
+
+// Глобальное потокобезопасное хранилище документов
+var docStore = struct {
+	mu   sync.Mutex
+	docs map[int]model.Document
+}{
+	docs: make(map[int]model.Document),
+}
+
+func init() {
+	initTestData()
+}
+
+// initTestData добавляет стартовые документы с полными демонстрационными данными.
+func initTestData() {
+	docStore.mu.Lock()
+	defer docStore.mu.Unlock()
+
+	docStore.docs[1] = model.Document{
+		ID:          1,
+		FileName:    "contract_001.pdf",
+		FileExt:     "pdf",
+		Status:      "processing",
+		Number:      "NK-2026/001",
+		Date:        "2026-04-24",
+		Supplier:    "ООО Ромашка",
+		SupplierINN: "1234ABCD", // намеренно некорректный для демонстрации ошибки валидации
+		Buyer:       "ООО Покупатель",
+		BuyerINN:    "7707083893",
+		ItemName:    "Канцтовары",
+		Quantity:    10.0,
+		Price:       150.00,
+		TotalSum:    1500.00,
+	}
+	slog.Info("Added test document", "id", 1, "number", "NK-2026/001")
+
+	docStore.docs[2] = model.Document{
+		ID:          2,
+		FileName:    "invoice_042.pdf",
+		FileExt:     "pdf",
+		Status:      "ready",
+		Number:      "SF-2026/042",
+		Date:        "2026-04-20",
+		Supplier:    "ООО Поставщик",
+		SupplierINN: "7707083893",
+		Buyer:       "ООО Заказчик",
+		BuyerINN:    "7707083893",
+		ItemName:    "Бумага А4",
+		Quantity:    100.0,
+		Price:       2.50,
+		TotalSum:    250.00,
+	}
+	slog.Info("Added test document", "id", 2, "number", "SF-2026/042")
+
+	docStore.docs[3] = model.Document{
+		ID:          3,
+		FileName:    "act_007.pdf",
+		FileExt:     "pdf",
+		Status:      "approved",
+		Number:      "ACT-2026/007",
+		Date:        "2026-04-15",
+		Supplier:    "ИП Иванов",
+		SupplierINN: "123456789012",
+		Buyer:       "ООО Клиент",
+		BuyerINN:    "7707083893",
+		ItemName:    "Услуги",
+		Quantity:    1.0,
+		Price:       5000.00,
+		TotalSum:    5000.00,
+	}
+	slog.Info("Added test document", "id", 3, "number", "ACT-2026/007")
+
+	slog.Info("Initialised test documents in store", "count", len(docStore.docs))
+}
+
+// GetAllDocuments возвращает срез всех документов (порядок не гарантирован)
+func GetAllDocuments() []model.Document {
+	docStore.mu.Lock()
+	defer docStore.mu.Unlock()
+
+	result := make([]model.Document, 0, len(docStore.docs))
+	for _, d := range docStore.docs {
+		result = append(result, d)
+	}
+	return result
+}
+
+// GetDocument возвращает документ по ID (и флаг существования)
+func GetDocument(id int) (model.Document, bool) {
+	docStore.mu.Lock()
+	defer docStore.mu.Unlock()
+
+	d, ok := docStore.docs[id]
+	return d, ok
+}
+
+// UpdateDocumentField обновляет поле документа и возвращает ошибку валидации (пустая строка, если ОК)
+// и обновлённый документ. Если документ не найден, возвращает ошибку.
+func UpdateDocumentField(id int, fieldName string, value string) (string, model.Document, error) {
+	docStore.mu.Lock()
+	defer docStore.mu.Unlock()
+
+	doc, ok := docStore.docs[id]
+	if !ok {
+		return "", model.Document{}, fmt.Errorf("document with id %d not found", id)
+	}
+
+	// Обновляем поле (только те, что есть в модели)
+	switch fieldName {
+	case "number":
+		doc.Number = value
+	case "date":
+		doc.Date = value
+	case "supplier":
+		doc.Supplier = value
+	case "supplier_inn":
+		doc.SupplierINN = value
+	case "buyer":
+		doc.Buyer = value
+	case "buyer_inn":
+		doc.BuyerINN = value
+	case "item_name":
+		doc.ItemName = value
+	case "quantity":
+		doc.Quantity = parseFloat(value)
+	case "price":
+		doc.Price = parseFloat(value)
+	case "total_sum":
+		doc.TotalSum = parseFloat(value)
+	default:
+		return fmt.Sprintf("unknown field: %s", fieldName), doc, nil
+	}
+
+	docStore.docs[id] = doc
+
+	// Простая валидация поля
+	validationErr := validateField(fieldName, value)
+	return validationErr, doc, nil
+}
+
+// ApproveDocument устанавливает статус "approved"
+func ApproveDocument(id int) error {
+	docStore.mu.Lock()
+	defer docStore.mu.Unlock()
+
+	doc, ok := docStore.docs[id]
+	if !ok {
+		return fmt.Errorf("document with id %d not found", id)
+	}
+	doc.Status = "approved"
+	docStore.docs[id] = doc
+
+	slog.Info("Document approved", "id", id) // уже было, оставляем
+	return nil
+}
+
+// AddDocument добавляет новый документ в хранилище и возвращает его ID
+func AddDocument(doc model.Document) int {
+	docStore.mu.Lock()
+	defer docStore.mu.Unlock()
+
+	// Генерируем простой ID: на 1 больше максимального существующего
+	newID := 1
+	for id := range docStore.docs {
+		if id >= newID {
+			newID = id + 1
+		}
+	}
+	doc.ID = newID
+
+	// Если статус не задан, ставим "ready" по умолчанию
+	if doc.Status == "" {
+		doc.Status = "ready"
+	}
+
+	// Если FileExt не задан, определяем из имени файла
+	if doc.FileExt == "" && doc.FileName != "" {
+		ext := filepath.Ext(doc.FileName)
+		if ext != "" {
+			doc.FileExt = ext[1:] // убираем точку
+		} else {
+			doc.FileExt = "unknown"
+		}
+	}
+
+	docStore.docs[newID] = doc
+
+	// Логируем создание документа с его статусом
+	slog.Info("Document uploaded with status", "id", newID, "status", doc.Status)
+
+	return newID
+}
+
+// --- Вспомогательные функции ---
+
+func parseFloat(s string) float64 {
+	var f float64
+	fmt.Sscanf(s, "%f", &f)
+	return f
+}
+
+// validateField проверяет корректность значения поля.
+// Пустое значение считается допустимым (поле не распознано) и не вызывает ошибки.
+func validateField(fieldName, value string) string {
+	if value == "" {
+		return "" // пустые поля допустимы
+	}
+	switch fieldName {
+	case "supplier_inn", "buyer_inn":
+		if !isValidINN(value) {
+			return "ИНН должен содержать 10 или 12 цифр"
+		}
+	case "date":
+		if !isValidDate(value) {
+			return "Дата должна быть в формате YYYY-MM-DD"
+		}
+	case "quantity", "price", "total_sum":
+		f := parseFloat(value)
+		if f < 0 {
+			return "Значение не может быть отрицательным"
+		}
+	}
+	return ""
+}
+
+// isValidINN проверяет формат ИНН. Пустая строка считается корректной.
+func isValidINN(inn string) bool {
+	if inn == "" {
+		return true
+	}
+	if len(inn) != 10 && len(inn) != 12 {
+		return false
+	}
+	for _, c := range inn {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// isValidDate проверяет формат даты. Пустая строка считается корректной.
+func isValidDate(date string) bool {
+	if date == "" {
+		return true
+	}
+	_, err := time.Parse("2006-01-02", date)
+	return err == nil
+}
+
+// ValidateDocument возвращает список ошибок для всех полей документа, которые должны быть проверены.
+func ValidateDocument(id int) []string {
+	doc, ok := GetDocument(id)
+	if !ok {
+		return []string{"Документ не найден"}
+	}
+
+	var errors []string
+
+	// Поля для проверки: имя поля в модели, текущее значение, русское название
+	checks := []struct {
+		fieldName string
+		value     string
+		label     string
+	}{
+		{"supplier_inn", doc.SupplierINN, "ИНН поставщика"},
+		{"buyer_inn", doc.BuyerINN, "ИНН покупателя"},
+		{"date", doc.Date, "Дата"},
+		{"quantity", fmt.Sprint(doc.Quantity), "Количество"},
+		{"price", fmt.Sprint(doc.Price), "Цена"},
+		{"total_sum", fmt.Sprint(doc.TotalSum), "Общая сумма"},
+	}
+
+	for _, c := range checks {
+		if msg := validateField(c.fieldName, c.value); msg != "" {
+			errors = append(errors, fmt.Sprintf("%s: %s", c.label, msg))
+		}
+	}
+
+	return errors
+}
+
+--- FILE: ./internal/handler/export.go ---
+// internal/handler/export.go
+package handler
+
+import (
+	"encoding/json"
+	"encoding/xml"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"accounting-doc-processor/internal/model"
+)
+
+// ExportHandler handles GET /export/{id}/{format}
+func ExportHandler(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/export/")
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) != 2 {
+		http.NotFound(w, r)
+		return
+	}
+	idStr := parts[0]
+	format := parts[1]
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	doc, ok := GetDocument(id)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	if doc.Status != "approved" {
+		http.Error(w, "Document not approved yet", http.StatusForbidden)
+		return
+	}
+
+	slog.Info("Exporting document", "id", id, "format", format)
+
+	switch format {
+	case "json":
+		exportJSON(w, doc)
+	case "csv":
+		exportCSV(w, doc)
+	case "xml":
+		exportXML(w, doc)
+	case "xlsx":
+		exportXLSX(w, doc)
+	default:
+		http.Error(w, "Unsupported export format", http.StatusBadRequest)
+	}
+}
+
+func exportJSON(w http.ResponseWriter, doc model.Document) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(doc); err != nil {
+		slog.Error("Failed to encode JSON", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+func exportCSV(w http.ResponseWriter, doc model.Document) {
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	fmt.Fprintf(w, "ID,FileName,FileExt,Status,Number,Date,Supplier,SupplierINN,Buyer,BuyerINN,ItemName,Quantity,Price,TotalSum\n")
+	fmt.Fprintf(w, "%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%.2f,%.2f,%.2f\n",
+		doc.ID,
+		escapeCSV(doc.FileName),
+		escapeCSV(doc.FileExt),
+		escapeCSV(doc.Status),
+		escapeCSV(doc.Number),
+		escapeCSV(doc.Date),
+		escapeCSV(doc.Supplier),
+		escapeCSV(doc.SupplierINN),
+		escapeCSV(doc.Buyer),
+		escapeCSV(doc.BuyerINN),
+		escapeCSV(doc.ItemName),
+		doc.Quantity,
+		doc.Price,
+		doc.TotalSum,
+	)
+}
+
+func escapeCSV(s string) string {
+	if strings.ContainsAny(s, ",\"\n") {
+		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+	}
+	return s
+}
+
+func exportXML(w http.ResponseWriter, doc model.Document) {
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	type xmlDocument struct {
+		XMLName     xml.Name `xml:"Document"`
+		ID          int      `xml:"ID"`
+		FileName    string   `xml:"FileName"`
+		FileExt     string   `xml:"FileExt"`
+		Status      string   `xml:"Status"`
+		Number      string   `xml:"Number"`
+		Date        string   `xml:"Date"`
+		Supplier    string   `xml:"Supplier"`
+		SupplierINN string   `xml:"SupplierINN"`
+		Buyer       string   `xml:"Buyer"`
+		BuyerINN    string   `xml:"BuyerINN"`
+		ItemName    string   `xml:"ItemName"`
+		Quantity    float64  `xml:"Quantity"`
+		Price       float64  `xml:"Price"`
+		TotalSum    float64  `xml:"TotalSum"`
+	}
+	x := xmlDocument{
+		ID:          doc.ID,
+		FileName:    doc.FileName,
+		FileExt:     doc.FileExt,
+		Status:      doc.Status,
+		Number:      doc.Number,
+		Date:        doc.Date,
+		Supplier:    doc.Supplier,
+		SupplierINN: doc.SupplierINN,
+		Buyer:       doc.Buyer,
+		BuyerINN:    doc.BuyerINN,
+		ItemName:    doc.ItemName,
+		Quantity:    doc.Quantity,
+		Price:       doc.Price,
+		TotalSum:    doc.TotalSum,
+	}
+	encoder := xml.NewEncoder(w)
+	encoder.Indent("", "  ")
+	fmt.Fprint(w, xml.Header)
+	if err := encoder.Encode(x); err != nil {
+		slog.Error("Failed to encode XML", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+func exportXLSX(w http.ResponseWriter, doc model.Document) {
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	fmt.Fprintf(w, "XLSX stub for document %s", doc.Number)
+}
+
+--- FILE: ./internal/handler/document.go ---
+package handler
+
+// Document-related HTTP handlers will be defined here.
+
+--- FILE: ./internal/handler/pages.go ---
+// internal/handler/pages.go
+package handler
+
+import (
+	"html/template"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"accounting-doc-processor/internal/model"
+)
+
+// Раздельные шаблоны для каждой страницы, чтобы избежать конфликта блоков "content".
+var (
+	TmplUpload  *template.Template
+	TmplVerify  *template.Template
+	TmplResults *template.Template
+	TmplPartial *template.Template
+)
+
+// UploadPageHandler renders the upload page with a list of example documents.
+func UploadPageHandler(w http.ResponseWriter, r *http.Request) {
+	documents := GetAllDocuments()
+
+	pageData := struct {
+		Documents []model.Document
+	}{
+		Documents: documents,
+	}
+
+	if err := TmplUpload.ExecuteTemplate(w, "base.html", pageData); err != nil {
+		slog.Error("Failed to execute upload template", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// VerificationPageHandler renders the verification page for a document.
+func VerificationPageHandler(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/verify/")
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) < 1 || parts[0] == "" {
+		http.NotFound(w, r)
+		return
+	}
+	idStr := parts[0]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	doc, ok := GetDocument(id)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	slog.Info("Rendering verification page", "id", id)
+
+	data := struct {
+		Document model.Document
+	}{
+		Document: doc,
+	}
+
+	if err := TmplVerify.ExecuteTemplate(w, "base.html", data); err != nil {
+		slog.Error("Failed to execute verification template", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// ResultsPageHandler renders the results page for an approved document.
+func ResultsPageHandler(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/results/")
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) < 1 || parts[0] == "" {
+		http.NotFound(w, r)
+		return
+	}
+	id, err := strconv.Atoi(parts[0])
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	doc, ok := GetDocument(id)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	slog.Info("Rendering results page", "id", id)
+
+	data := struct {
+		Document model.Document
+		Message  string
+	}{
+		Document: doc,
+		Message:  "Документ успешно обработан и утверждён.",
+	}
+
+	if err := TmplResults.ExecuteTemplate(w, "base.html", data); err != nil {
+		slog.Error("Failed to execute results template", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+--- FILE: ./internal/handler/validation.go ---
+package handler
+
+--- SKIPPED BINARY: ./internal/repository/sqlite/migrations/001_init.up.sql ---
+--- SKIPPED BINARY: ./internal/repository/sqlite/migrations/001_init.down.sql ---
+--- SKIPPED BINARY: ./internal/repository/sqlite/field.go ---
+--- SKIPPED BINARY: ./internal/repository/sqlite/document.go ---
+--- SKIPPED BINARY: ./internal/repository/postgres/migrations/001_init.up.sql ---
+--- SKIPPED BINARY: ./internal/repository/postgres/migrations/001_init.down.sql ---
+--- SKIPPED BINARY: ./internal/repository/postgres/field.go ---
+--- SKIPPED BINARY: ./internal/repository/postgres/document.go ---
+--- SKIPPED BINARY: ./internal/.DS_Store ---
+--- SKIPPED BINARY: ./internal/config/config.go ---
+--- SKIPPED BINARY: ./internal/config/config.yaml ---
+--- FILE: ./internal/model/field.go ---
+package model
+
+--- FILE: ./internal/model/export.go ---
+package model
+
+// Export types and helpers will be defined here.
+
+--- FILE: ./internal/model/document.go ---
+package model
+
+// Document represents an extracted accounting document with fields
+// that can be displayed on verification and results pages.
+type Document struct {
+	ID          int     `json:"id"`
+	FileName    string  `json:"file_name"`
+	FileExt     string  `json:"file_ext"` // расширение файла: "pdf", "jpg", "png" и т.д.
+	Status      string  `json:"status"`   // "processing", "ready", "approved"
+	Number      string  `json:"number"`
+	Date        string  `json:"date"`
+	Supplier    string  `json:"supplier"`
+	SupplierINN string  `json:"supplier_inn"`
+	Buyer       string  `json:"buyer"`
+	BuyerINN    string  `json:"buyer_inn"`
+	ItemName    string  `json:"item_name"`
+	Quantity    float64 `json:"quantity"`
+	Price       float64 `json:"price"`
+	TotalSum    float64 `json:"total_sum"`
+}
+
+type Field struct {
+	Name    string
+	Value   string
+	IsValid bool
+	Error   string
+}
+
+--- FILE: ./internal/model/validation.go ---
+package model
+
+--- SKIPPED BINARY: ./internal/service/validator/inn.go ---
+--- SKIPPED BINARY: ./internal/service/validator/validator.go ---
+--- SKIPPED BINARY: ./internal/service/validator/numeric.go ---
+--- SKIPPED BINARY: ./internal/service/validator/marker.go ---
+--- SKIPPED BINARY: ./internal/service/validator/date.go ---
+--- SKIPPED BINARY: ./internal/service/datamanager/field_repo.go ---
+--- SKIPPED BINARY: ./internal/service/datamanager/batch.go ---
+--- SKIPPED BINARY: ./internal/service/datamanager/history.go ---
+--- SKIPPED BINARY: ./internal/service/datamanager/document_repo.go ---
+--- SKIPPED BINARY: ./internal/service/filemanager/uploader.go ---
+--- SKIPPED BINARY: ./internal/service/filemanager/thumbnail.go ---
+--- SKIPPED BINARY: ./internal/service/filemanager/storage.go ---
+--- SKIPPED BINARY: ./internal/service/filemanager/local_storage.go ---
+--- SKIPPED BINARY: ./internal/service/aiextractor/client.go ---
+--- SKIPPED BINARY: ./internal/service/aiextractor/response_parser.go ---
+--- SKIPPED BINARY: ./internal/service/aiextractor/fallback.go ---
+--- SKIPPED BINARY: ./internal/service/aiextractor/openai_client.go ---
+--- SKIPPED BINARY: ./internal/service/aiextractor/prompt.go ---
+--- SKIPPED BINARY: ./internal/service/aiextractor/local_client.go ---
+--- SKIPPED BINARY: ./internal/service/documentprocessor/worker.go ---
+--- SKIPPED BINARY: ./internal/service/documentprocessor/preprocessor.go ---
+--- SKIPPED BINARY: ./internal/service/documentprocessor/pipeline.go ---
+--- SKIPPED BINARY: ./internal/service/documentprocessor/status.go ---
+--- SKIPPED BINARY: ./internal/service/exporter/excel_writer.go ---
+--- SKIPPED BINARY: ./internal/service/exporter/xml_writer.go ---
+--- SKIPPED BINARY: ./internal/service/exporter/csv_writer.go ---
+--- SKIPPED BINARY: ./internal/service/exporter/exporter.go ---
+--- SKIPPED BINARY: ./internal/service/exporter/naming.go ---
+--- SKIPPED BINARY: ./internal/service/exporter/json_writer.go ---
+--- SKIPPED BINARY: ./internal/worker/job.go ---
+--- SKIPPED BINARY: ./internal/worker/pool.go ---
+--- FILE: ./internal/pkg/logger/logger.go ---
+package logger
+
+import (
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+)
+
+func setupFileLogger() (*os.File, error) {
+
+	appDir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	logFileName := filepath.Join(appDir, "../tmp/logs", "app.log")
+	os.Remove(logFileName)
+	logDir := filepath.Join(appDir, "../tmp/logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return nil, err
+	}
+	file, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	return file, nil
+}
+
+func InitLogger(consoleWrite bool) (cleanup func(), err error) {
+	logFile, err := setupFileLogger()
+	if err != nil {
+		fmt.Printf("ERROR setupFileLogger: %v\n", err)
+	}
+
+	var logWriter io.Writer
+	if consoleWrite && logFile != nil {
+		logWriter = io.MultiWriter(os.Stdout, logFile)
+	} else if logFile != nil {
+		logWriter = logFile
+	} else {
+		logWriter = os.Stdout
+	}
+
+	logHandler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{
+		Level:     slog.LevelDebug,
+		AddSource: true,
+	})
+
+	logger := slog.New(logHandler)
+	slog.SetDefault(logger)
+
+	cleanup = func() {
+		slog.Info("Exit program")
+		logFile.Close()
+	}
+	return cleanup, nil
+}
+
+--- SKIPPED BINARY: ./server ---
+--- SKIPPED BINARY: ./go.sum ---
+--- SKIPPED BINARY: ./docs/architecture.md ---
+--- SKIPPED BINARY: ./docs/api.md ---
+--- SKIPPED BINARY: ./docs/deployment.md ---
+--- SKIPPED BINARY: ./README.md ---
+--- FILE: ./.gitignore ---
+logs/
+.DS_Store
+tmp/
+.vscode/
+
+# Created by https://www.toptal.com/developers/gitignore/api/go,git,visualstudiocode,macos
+# Edit at https://www.toptal.com/developers/gitignore?templates=go,git,visualstudiocode,macos
+
+### Git ###
+# Created by git for backups. To disable backups in Git:
+# $ git config --global mergetool.keepBackup false
+*.orig
+
+# Created by git when using merge tools for conflicts
+*.BACKUP.*
+*.BASE.*
+*.LOCAL.*
+*.REMOTE.*
+*_BACKUP_*.txt
+*_BASE_*.txt
+*_LOCAL_*.txt
+*_REMOTE_*.txt
+
+### Go ###
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+### macOS ###
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon must end with two \r
+Icon
+
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+### macOS Patch ###
+# iCloud generated files
+*.icloud
+
+### VisualStudioCode ###
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+### VisualStudioCode Patch ###
+# Ignore all local history of files
+.history
+.ionide
+
+# End of https://www.toptal.com/developers/gitignore/api/go,git,visualstudiocode,macos
+--- FILE: ./project_dump.sh ---
+#!/usr/bin/env bash
+# ============================================================
+# Дамп проекта: структура + содержимое текстовых файлов
+# Проверено на macOS (утилита tree опциональна).
+# Использование:
+#   ./project_dump.sh [выходной_файл]
+# ============================================================
+
+set -euo pipefail
+
+# --- Настройки исключений ---
+EXCLUDE_DIRS=(".git" "node_modules" "__pycache__" ".venv" "venv" "build" "dist" ".idea" ".vscode" ".DS_Store")
+SKIP_EXT=("png" "jpg" "jpeg" "gif" "bmp" "svg" "ico" "woff" "woff2" "ttf" "eot" "mp3" "mp4" "avi" "mov" "pdf" "zip" "gz" "tar" "exe" "dll" "so" "o" "a" "class" "pyc")
+SKIP_FILES=("*.min.js" "*.min.css" "package-lock.json" "yarn.lock" "*.map")
+
+OUTPUT_FILE="${1:-project_dump_$(date +%Y%m%d_%H%M%S).txt}"
+SCRIPT_NAME="$(basename "$0")"
+
+if [ "$OUTPUT_FILE" = "$SCRIPT_NAME" ]; then
+    echo "Ошибка: выходной файл совпадает с именем скрипта. Укажите другое имя." >&2
+    exit 1
+fi
+
+# --- Дерево каталогов ---
+print_tree() {
+    if command -v tree &> /dev/null; then
+        # tree устанавливается через brew install tree
+        local ignore
+        ignore=$(printf "%s|" "${EXCLUDE_DIRS[@]}" | sed 's/|$//')
+        echo "Project structure (tree):"
+        tree -a -I "$ignore" --charset utf-8 --dirsfirst .
+    else
+        echo "Project structure (find, tree не установлен):"
+        find . \( $(printf -- "-name '%s' -prune -o " "${EXCLUDE_DIRS[@]}" | sed 's/ -o $//') \) -print | sed -e 's|[^/]*/| |g'
+    fi
+}
+
+# --- Проверка: текстовый ли файл ---
+is_text_file() {
+    local f="$1"
+    local ext="${f##*.}"
+    for skip in "${SKIP_EXT[@]}"; do
+        if [[ "$ext" == "$skip" ]]; then
+            return 1
+        fi
+    done
+    # Используем корректную для macOS команду (file -bI)
+    local mime
+    mime=$(file -bI "$f" 2>/dev/null | cut -d';' -f1 || true)
+    [[ "$mime" == text/* ]] && return 0
+    return 1
+}
+
+# --- Основной блок ---
+{
+    echo "=============== PROJECT DUMP ==============="
+    echo "Generated: $(date)"
+    echo "Root: $(pwd)"
+    echo "============================================"
+    echo ""
+    print_tree
+    echo ""
+    echo "=============== FILE CONTENTS ==============="
+    echo ""
+
+    # Формируем аргументы для find – исключаем каталоги через -not -path
+    find_args=()
+    for dir in "${EXCLUDE_DIRS[@]}"; do
+        find_args+=(-not -path "*/${dir}/*")
+    done
+
+    # Рекурсивно проходим по всем файлам
+    while IFS= read -r -d '' file; do
+        # Пропускаем сам выходной файл
+        if [[ "$file" == "./$OUTPUT_FILE" ]]; then
+            continue
+        fi
+
+        # Пропускаем по маскам имён (например, *.min.js)
+        base=$(basename "$file")
+        local_skip=0
+        for pattern in "${SKIP_FILES[@]}"; do
+            if [[ "$base" == $pattern ]]; then
+                local_skip=1
+                break
+            fi
+        done
+        [[ $local_skip -eq 1 ]] && continue
+
+        if is_text_file "$file"; then
+            echo "--- FILE: $file ---"
+            cat "$file"
+            echo ""
+        else
+            echo "--- SKIPPED BINARY: $file ---"
+        fi
+    done < <(find . "${find_args[@]}" -type f -print0)
+
+    echo ""
+    echo "=============== END OF DUMP ==============="
+} > "$OUTPUT_FILE"
+
+echo "Дамп сохранён в: $OUTPUT_FILE"
+
+=============== END OF DUMP ===============

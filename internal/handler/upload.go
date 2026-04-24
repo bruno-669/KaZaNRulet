@@ -79,7 +79,7 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 		Status:   "ready",
 	}
 	newID := AddDocument(doc)
-	slog.Info("Document added", "id", newID, "filename", fileName)
+	slog.Info("File saved, document record created", "id", newID, "filename", fileName)
 
 	// Возвращаем обновлённый фрагмент таблицы
 	FileListPartialHandler(w, r)
