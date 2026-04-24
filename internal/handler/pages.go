@@ -8,19 +8,24 @@ import (
 	"strconv"
 	"strings"
 
+	"accounting-doc-processor/internal/config"
 	"accounting-doc-processor/internal/model"
 	"accounting-doc-processor/internal/service/datamanager"
 )
 
-// DocRepo – глобальный репозиторий, используемый обработчиками.
-var DocRepo datamanager.DocumentRepository
+var (
+	DocRepo   datamanager.DocumentRepository
+	AppConfig *config.Config
+)
 
-// SetDocumentRepo устанавливает реализацию репозитория.
 func SetDocumentRepo(repo datamanager.DocumentRepository) {
 	DocRepo = repo
 }
 
-// Раздельные шаблоны для каждой страницы, чтобы избежать конфликта блоков "content".
+func SetConfig(cfg *config.Config) {
+	AppConfig = cfg
+}
+
 var (
 	TmplUpload  *template.Template
 	TmplVerify  *template.Template

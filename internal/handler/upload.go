@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"accounting-doc-processor/internal/model"
+	"accounting-doc-processor/internal/service/aiextractor"
+	"accounting-doc-processor/internal/service/documentprocessor"
 	"io"
 	"log/slog"
 	"net/http"
@@ -8,10 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"accounting-doc-processor/internal/model"
-	"accounting-doc-processor/internal/service/aiextractor"
-	"accounting-doc-processor/internal/service/documentprocessor"
+	"time"
 )
 
 // FileListPartialHandler returns an HTML fragment with the document table.
@@ -76,15 +76,14 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Создаём запись документа
+	// Создаём документ
 	doc := model.Document{
 		FileName: fileName,
-		Status:   "ready", // будет изменён в процессе обработки
+		Status:   "ready",
 	}
 	newID := DocRepo.Add(doc)
 	slog.Info("File saved, document record created", "id", newID, "filename", fileName)
 
-	// Запускаем локальную обработку (заглушку AI)
 	storedDoc, ok := DocRepo.Get(newID)
 	if !ok {
 		slog.Error("Failed to retrieve just created document", "id", newID)
@@ -92,7 +91,20 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := &aiextractor.LocalClient{}
+	// Выбираем клиента AI: используем Gigachat, если задан OCR URL
+	var client aiextractor.ExtractorClient
+	if AppConfig != nil && AppConfig.AI.OCRURL != "" {
+		client = &aiextractor.GigaChatExtractor{
+			OCRURL:      AppConfig.AI.OCRURL,
+			GigaChatURL: AppConfig.AI.GigaChatURL,
+			Token:       AppConfig.AI.GigaChatToken,
+			httpClient:  &http.Client{Timeout: 60 * time.Second},
+		}
+	} else {
+		client = &aiextractor.LocalClient{}
+		slog.Warn("AI config missing, using local stub", "id", newID)
+	}
+
 	processedDoc, err := documentprocessor.ProcessDocument(storedDoc, client, destPath)
 	if err != nil {
 		slog.Warn("Document processed with errors, keeping result", "id", newID, "error", err)
@@ -104,7 +116,6 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Возвращаем обновлённый фрагмент таблицы
 	FileListPartialHandler(w, r)
 }
 

@@ -1,3 +1,4 @@
+// internal/service/documentprocessor/pipeline.go
 package documentprocessor
 
 import (
@@ -5,10 +6,9 @@ import (
 
 	"accounting-doc-processor/internal/model"
 	"accounting-doc-processor/internal/service/aiextractor"
+	"accounting-doc-processor/internal/service/validator"
 )
 
-// ProcessDocument simulates AI processing: sets status to "processing",
-// calls the ExtractorClient, fills the fields, and finally sets status to "ready".
 func ProcessDocument(doc model.Document, client aiextractor.ExtractorClient, filePath string) (model.Document, error) {
 	slog.Info("AI processing started", "id", doc.ID)
 	doc.Status = "processing"
@@ -19,6 +19,9 @@ func ProcessDocument(doc model.Document, client aiextractor.ExtractorClient, fil
 		slog.Error("AI extraction failed", "id", doc.ID, "error", err)
 		return doc, err
 	}
+
+	// Валидация всех извлечённых полей
+	fields = validator.ValidateFields(fields)
 
 	doc.Fields = fields
 	doc.Status = "ready"

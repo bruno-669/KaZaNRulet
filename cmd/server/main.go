@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	"accounting-doc-processor/internal/config"
 	"accounting-doc-processor/internal/handler"
 	"accounting-doc-processor/internal/pkg/logger"
 	"accounting-doc-processor/internal/service/datamanager"
@@ -37,6 +38,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 func main() {
 	debug := flag.Bool("debug", false, "enable debug mode")
+	configPath := flag.String("config", "internal/config/config.yaml", "path to config file")
 	flag.Parse()
 
 	cleanup, err := logger.InitLogger(*debug)
@@ -45,9 +47,17 @@ func main() {
 	}
 	defer cleanup()
 
+	// Загрузка конфигурации
+	cfg, err := config.LoadConfig(*configPath)
+	if err != nil {
+		slog.Error("Failed to load config", "error", err)
+		os.Exit(1)
+	}
+	handler.SetConfig(cfg)
+
 	slog.Info("Start program")
 
-	// Инициализируем репозиторий документов и внедряем в обработчики
+	// Инициализируем репозиторий
 	repo := datamanager.NewMemoryDocRepo()
 	handler.SetDocumentRepo(repo)
 
@@ -88,8 +98,12 @@ func main() {
 
 	server := loggingMiddleware(mux)
 
-	slog.Info("Starting server on :8080")
-	if err := http.ListenAndServe(":8080", server); err != nil {
+	addr := cfg.ServerPort
+	if addr == "" {
+		addr = ":8080"
+	}
+	slog.Info("Starting server", "addr", addr)
+	if err := http.ListenAndServe(addr, server); err != nil {
 		slog.Error("Server failed", "error", err)
 		os.Exit(1)
 	}

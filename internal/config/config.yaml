@@ -1,0 +1,5 @@
+server_port: ":8080"
+ai:
+  ocr_url: "http://localhost:8000/ocr"
+  gigachat_url: "https://gigachat-api.example.com/v1/chat/completions"
+  gigachat_token: "your-token-here"
